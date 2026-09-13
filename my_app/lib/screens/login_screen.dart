@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'signup_screen.dart';
-import 'home_screen.dart';
 import 'forgot_password_screen.dart';
+import 'main_navigation_screen.dart';
+import 'admin_login_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,7 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => const HomeScreen(),
+          builder: (context) => const MainNavigationScreen(),
         ),
       );
     } on FirebaseAuthException catch (e) {
@@ -76,6 +77,15 @@ class _LoginScreenState extends State<LoginScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => const ForgotPasswordScreen(),
+      ),
+    );
+  }
+
+  void openAdminLogin() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AdminLoginScreen(),
       ),
     );
   }
@@ -339,7 +349,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 18),
 
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -371,6 +381,25 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ],
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  TextButton.icon(
+                    onPressed: openAdminLogin,
+                    icon: const Icon(
+                      Icons.admin_panel_settings_outlined,
+                      color: Colors.deepOrange,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Admin Login',
+                      style: TextStyle(
+                        color: Colors.deepOrange,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),

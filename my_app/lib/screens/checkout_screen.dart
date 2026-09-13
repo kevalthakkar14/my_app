@@ -1,4 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+
 import '../cart_data.dart';
 import 'order_success_screen.dart';
 
@@ -17,11 +20,118 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String state = 'Gujarat';
   String pincode = '360001';
 
+  bool isPlacingOrder = false;
+
   String money(int value) {
     return '₹${value.toString().replaceAllMapped(
           RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
           (match) => '${match[1]},',
         )}';
+  }
+
+  Future<void> _placeOrder() async {
+    if (CartData.items.value.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your cart is empty'),
+        ),
+      );
+      return;
+    }
+
+    if (name.trim().isEmpty ||
+        phone.trim().isEmpty ||
+        address.trim().isEmpty ||
+        city.trim().isEmpty ||
+        state.trim().isEmpty ||
+        pincode.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill all address details'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      isPlacingOrder = true;
+    });
+
+    try {
+      final DatabaseReference orderRef =
+          FirebaseDatabase.instance.ref('orders').push();
+
+      final User? user = FirebaseAuth.instance.currentUser;
+
+      final List<Map<String, dynamic>> orderItems =
+          CartData.items.value.map((item) {
+        return {
+          'name': item['name']?.toString() ?? 'Product',
+          'price': CartData.toInt(item['price']),
+          'quantity': CartData.toInt(item['quantity'], 1),
+          'image': item['image']?.toString() ?? '',
+          'category': item['category']?.toString() ?? '',
+        };
+      }).toList();
+
+      final String fullAddress =
+          '$address, $city, $state - $pincode';
+
+      final Map<String, dynamic> orderData = {
+        'orderId': orderRef.key,
+        'customerName': name,
+        'name': name,
+        'email': user?.email ?? 'Not provided',
+        'phone': phone,
+        'address': fullAddress,
+        'city': city,
+        'state': state,
+        'pincode': pincode,
+        'items': orderItems,
+        'subtotal': CartData.subtotal,
+        'discount': CartData.discount,
+        'deliveryCharges': CartData.deliveryCharges,
+        'total': CartData.total,
+        'amount': CartData.total,
+        'status': 'PENDING',
+        'paymentMethod': 'Cash on Delivery',
+        'paymentStatus': 'Pending',
+        'date': DateTime.now().toIso8601String(),
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+
+      await orderRef.set(orderData);
+
+      final String orderId = orderRef.key ?? 'AZ${DateTime.now().millisecondsSinceEpoch}';
+
+      CartData.clearCart();
+
+      if (!mounted) return;
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OrderSuccessScreen(
+            orderId: orderId,
+          ),
+        ),
+        (route) => route.isFirst,
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Order failed: $error'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isPlacingOrder = false;
+        });
+      }
+    }
   }
 
   void _changeAddress() {
@@ -41,13 +151,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           top: Radius.circular(20),
         ),
       ),
-      builder: (context) {
+      builder: (sheetContext) {
         return Padding(
           padding: EdgeInsets.only(
             left: 18,
             right: 18,
             top: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
           ),
           child: SingleChildScrollView(
             child: Column(
@@ -68,7 +178,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
                     IconButton(
                       onPressed: () {
-                        Navigator.pop(context);
+                        Navigator.pop(sheetContext);
                       },
                       icon: const Icon(
                         Icons.close,
@@ -136,7 +246,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                           cityController.text.trim().isEmpty ||
                           stateController.text.trim().isEmpty ||
                           pincodeController.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(sheetContext).showSnackBar(
                           const SnackBar(
                             content: Text(
                               'Please fill all address details',
@@ -155,7 +265,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         pincode = pincodeController.text.trim();
                       });
 
-                      Navigator.pop(context);
+                      Navigator.pop(sheetContext);
 
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -266,12 +376,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         builder: (context, items, child) {
           return SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(
-              14,
-              8,
-              14,
-              25,
-            ),
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 25),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -299,7 +404,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 const SizedBox(height: 15),
                 _priceSummary(),
                 const SizedBox(height: 18),
-                _continueButton(),
+                _placeOrderButton(),
               ],
             ),
           );
@@ -315,9 +420,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF101A2E),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.white12,
-        ),
+        border: Border.all(color: Colors.white12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,9 +502,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  Widget _orderItems(
-    List<Map<String, dynamic>> items,
-  ) {
+  Widget _orderItems(List<Map<String, dynamic>> items) {
     if (items.isEmpty) {
       return Container(
         width: double.infinity,
@@ -430,21 +531,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       ),
       child: Column(
         children: [
-          for (final item in items)
-            _orderItem(item),
+          for (final item in items) _orderItem(item),
         ],
       ),
     );
   }
 
-  Widget _orderItem(
-    Map<String, dynamic> item,
-  ) {
-    int price = CartData.toInt(item['price']);
-    int quantity = CartData.toInt(
-      item['quantity'],
-      1,
-    );
+  Widget _orderItem(Map<String, dynamic> item) {
+    final int price = CartData.toInt(item['price']);
+    final int quantity = CartData.toInt(item['quantity'], 1);
 
     return Padding(
       padding: const EdgeInsets.all(10),
@@ -461,11 +556,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             child: Image.asset(
               item['image']?.toString() ?? '',
               fit: BoxFit.contain,
-              errorBuilder: (
-                context,
-                error,
-                stackTrace,
-              ) {
+              errorBuilder: (context, error, stackTrace) {
                 return const Icon(
                   Icons.image_not_supported,
                   color: Colors.white38,
@@ -513,10 +604,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _priceSummary() {
-    int subtotal = CartData.subtotal;
-    int discount = CartData.discount;
-    int delivery = CartData.deliveryCharges;
-    int total = CartData.total;
+    final int subtotal = CartData.subtotal;
+    final int discount = CartData.discount;
+    final int delivery = CartData.deliveryCharges;
+    final int total = CartData.total;
 
     return Container(
       width: double.infinity,
@@ -527,10 +618,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       ),
       child: Column(
         children: [
-          _summaryRow(
-            'Subtotal',
-            money(subtotal),
-          ),
+          _summaryRow('Subtotal', money(subtotal)),
           const SizedBox(height: 10),
           _summaryRow(
             'Discount',
@@ -544,9 +632,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             orange: delivery != 0,
           ),
           const SizedBox(height: 12),
-          const Divider(
-            color: Colors.white12,
-          ),
+          const Divider(color: Colors.white12),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -594,9 +680,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         Text(
           value,
           style: TextStyle(
-            color: orange
-                ? const Color(0xFFFF7200)
-                : Colors.white,
+            color: orange ? const Color(0xFFFF7200) : Colors.white,
             fontSize: 10,
             fontWeight: FontWeight.bold,
           ),
@@ -605,45 +689,48 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  Widget _continueButton() {
+  Widget _placeOrderButton() {
     return SizedBox(
       width: double.infinity,
       height: 48,
       child: ElevatedButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const OrderSuccessScreen(),
-            ),
-          );
-        },
+        onPressed: isPlacingOrder ? null : _placeOrder,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFFF7200),
+          disabledBackgroundColor: Colors.white24,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Continue to Payment',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
+        child: isPlacingOrder
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              )
+            : const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Place Order',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Icon(
+                    Icons.check_circle_outline,
+                    color: Colors.white,
+                    size: 17,
+                  ),
+                ],
               ),
-            ),
-            SizedBox(width: 8),
-            Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.white,
-              size: 12,
-            ),
-          ],
-        ),
       ),
     );
   }

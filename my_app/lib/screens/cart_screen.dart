@@ -1,9 +1,20 @@
 import 'package:flutter/material.dart';
 import '../cart_data.dart';
 import 'checkout_screen.dart';
+import 'home_screen.dart';
+import 'profile_screen.dart';
 
 class CartScreen extends StatefulWidget {
-  const CartScreen({super.key});
+  final bool showBottomNavigation;
+  final ValueChanged<int>? onNavigate;
+  final VoidCallback? onBack;
+
+  const CartScreen({
+    super.key,
+    this.showBottomNavigation = true,
+    this.onNavigate,
+    this.onBack,
+  });
 
   @override
   State<CartScreen> createState() => _CartScreenState();
@@ -28,7 +39,6 @@ class _CartScreenState extends State<CartScreen> {
           children: [
             _topBar(),
             _tabs(),
-
             Expanded(
               child: ValueListenableBuilder<List<Map<String, dynamic>>>(
                 valueListenable: CartData.items,
@@ -94,17 +104,11 @@ class _CartScreenState extends State<CartScreen> {
                             index,
                             items[index],
                           ),
-
                         const SizedBox(height: 8),
-
                         _discountBox(),
-
                         const SizedBox(height: 10),
-
                         _priceSummary(),
-
                         const SizedBox(height: 12),
-
                         _checkoutButton(),
                       ],
                     ),
@@ -112,8 +116,8 @@ class _CartScreenState extends State<CartScreen> {
                 },
               ),
             ),
-
-            _bottomNavigation(),
+            if (widget.showBottomNavigation)
+              _bottomNavigation(),
           ],
         ),
       ),
@@ -127,7 +131,11 @@ class _CartScreenState extends State<CartScreen> {
         children: [
           IconButton(
             onPressed: () {
-              Navigator.pop(context);
+              if (widget.onBack != null) {
+                widget.onBack!();
+              } else {
+                Navigator.pop(context);
+              }
             },
             icon: const Icon(
               Icons.arrow_back_ios_new,
@@ -135,7 +143,6 @@ class _CartScreenState extends State<CartScreen> {
               size: 18,
             ),
           ),
-
           const Expanded(
             child: Center(
               child: Text(
@@ -148,7 +155,6 @@ class _CartScreenState extends State<CartScreen> {
               ),
             ),
           ),
-
           IconButton(
             onPressed: () {},
             icon: const Icon(
@@ -205,7 +211,6 @@ class _CartScreenState extends State<CartScreen> {
               ),
             ),
           ),
-
           Expanded(
             child: GestureDetector(
               onTap: () {
@@ -267,9 +272,7 @@ class _CartScreenState extends State<CartScreen> {
               ),
             ),
           ),
-
           const SizedBox(width: 7),
-
           Container(
             width: 72,
             height: 72,
@@ -290,9 +293,7 @@ class _CartScreenState extends State<CartScreen> {
               },
             ),
           ),
-
           const SizedBox(width: 10),
-
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -308,9 +309,7 @@ class _CartScreenState extends State<CartScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 5),
-
                 Text(
                   money(price),
                   style: const TextStyle(
@@ -319,9 +318,7 @@ class _CartScreenState extends State<CartScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 6),
-
                 Container(
                   height: 29,
                   decoration: BoxDecoration(
@@ -352,7 +349,6 @@ class _CartScreenState extends State<CartScreen> {
                           ),
                         ),
                       ),
-
                       Container(
                         width: 28,
                         height: 28,
@@ -370,7 +366,6 @@ class _CartScreenState extends State<CartScreen> {
                           ),
                         ),
                       ),
-
                       SizedBox(
                         width: 35,
                         height: 29,
@@ -396,11 +391,8 @@ class _CartScreenState extends State<CartScreen> {
               ],
             ),
           ),
-
           Padding(
-            padding: const EdgeInsets.only(
-              right: 10,
-            ),
+            padding: const EdgeInsets.only(right: 10),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -419,9 +411,7 @@ class _CartScreenState extends State<CartScreen> {
                     size: 19,
                   ),
                 ),
-
                 const SizedBox(height: 7),
-
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 7,
@@ -454,9 +444,7 @@ class _CartScreenState extends State<CartScreen> {
     return Container(
       height: 50,
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: const Color(0xFF252E3F),
         borderRadius: BorderRadius.circular(11),
@@ -476,9 +464,7 @@ class _CartScreenState extends State<CartScreen> {
               size: 16,
             ),
           ),
-
           const SizedBox(width: 9),
-
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -491,9 +477,7 @@ class _CartScreenState extends State<CartScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-
               const SizedBox(height: 2),
-
               Text(
                 discount > 0
                     ? 'You saved ${money(discount)} on this order'
@@ -525,38 +509,25 @@ class _CartScreenState extends State<CartScreen> {
       ),
       child: Column(
         children: [
-          _summaryRow(
-            'Subtotal',
-            money(subtotal),
-          ),
-
+          _summaryRow('Subtotal', money(subtotal)),
           const SizedBox(height: 10),
-
           _summaryRow(
             'Discount',
             '-${money(discount)}',
             orange: true,
           ),
-
           const SizedBox(height: 10),
-
           _summaryRow(
             'Delivery Charges',
-            delivery == 0
-                ? 'FREE'
-                : money(delivery),
+            delivery == 0 ? 'FREE' : money(delivery),
             orange: delivery != 0,
           ),
-
           const SizedBox(height: 12),
-
           const Divider(
             color: Colors.white24,
             height: 1,
           ),
-
           const SizedBox(height: 12),
-
           Row(
             children: [
               const Expanded(
@@ -569,7 +540,6 @@ class _CartScreenState extends State<CartScreen> {
                   ),
                 ),
               ),
-
               Text(
                 money(total),
                 style: const TextStyle(
@@ -601,7 +571,6 @@ class _CartScreenState extends State<CartScreen> {
             ),
           ),
         ),
-
         Text(
           value,
           style: TextStyle(
@@ -625,8 +594,7 @@ class _CartScreenState extends State<CartScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) =>
-                  const CheckoutScreen(),
+              builder: (context) => const CheckoutScreen(),
             ),
           );
         },
@@ -648,9 +616,7 @@ class _CartScreenState extends State<CartScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
             SizedBox(width: 8),
-
             Icon(
               Icons.arrow_forward_ios,
               color: Colors.white,
@@ -674,29 +640,78 @@ class _CartScreenState extends State<CartScreen> {
         ),
       ),
       child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment.spaceAround,
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _bottomItem(
             Icons.home_outlined,
             'Home',
+            () {
+              if (widget.onNavigate != null) {
+                widget.onNavigate!(0);
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const HomeScreen(),
+                  ),
+                );
+              }
+            },
           ),
           _bottomItem(
             Icons.search,
             'Browse',
+            () {
+              if (widget.onNavigate != null) {
+                widget.onNavigate!(1);
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SearchScreen(
+                      products: HomeScreen.allProducts,
+                    ),
+                  ),
+                );
+              }
+            },
           ),
           _bottomItem(
             Icons.favorite_border,
             'Wishlist',
+            () {
+              if (widget.onNavigate != null) {
+                widget.onNavigate!(2);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Wishlist is coming soon'),
+                  ),
+                );
+              }
+            },
           ),
           _bottomItem(
             Icons.shopping_cart_outlined,
             'Cart',
+            () {},
             true,
           ),
           _bottomItem(
             Icons.person_outline,
             'Profile',
+            () {
+              if (widget.onNavigate != null) {
+                widget.onNavigate!(4);
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ProfileScreen(),
+                  ),
+                );
+              }
+            },
           ),
         ],
       ),
@@ -705,36 +720,41 @@ class _CartScreenState extends State<CartScreen> {
 
   Widget _bottomItem(
     IconData icon,
-    String title, [
+    String title,
+    VoidCallback onTap, [
     bool selected = false,
   ]) {
-    return Column(
-      mainAxisAlignment:
-          MainAxisAlignment.center,
-      children: [
-        Icon(
-          icon,
-          color: selected
-              ? const Color(0xFFFF7200)
-              : Colors.white54,
-          size: 20,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 55,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: selected
+                  ? const Color(0xFFFF7200)
+                  : Colors.white54,
+              size: 20,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              title,
+              style: TextStyle(
+                color: selected
+                    ? const Color(0xFFFF7200)
+                    : Colors.white54,
+                fontSize: 7,
+                fontWeight: selected
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+              ),
+            ),
+          ],
         ),
-
-        const SizedBox(height: 2),
-
-        Text(
-          title,
-          style: TextStyle(
-            color: selected
-                ? const Color(0xFFFF7200)
-                : Colors.white54,
-            fontSize: 7,
-            fontWeight: selected
-                ? FontWeight.bold
-                : FontWeight.normal,
-          ),
-        ),
-      ],
+      ),
     );
   }
-}
+} 

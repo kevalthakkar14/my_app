@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
 class OrderSuccessScreen extends StatelessWidget {
-  const OrderSuccessScreen({super.key});
+  final String orderId;
+
+  const OrderSuccessScreen({
+    super.key,
+    required this.orderId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +45,9 @@ class OrderSuccessScreen extends StatelessWidget {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF00D95F).withValues(alpha: 0.18),
+                          color: const Color(0xFF00D95F).withValues(
+                            alpha: 0.18,
+                          ),
                           blurRadius: 30,
                           spreadRadius: 8,
                         ),
@@ -99,20 +106,21 @@ class OrderSuccessScreen extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.04),
                       ),
                     ),
-                    child: const Column(
+                    child: Column(
                       children: [
-                        Text(
-                          'ORDER ID -',
+                        const Text(
+                          'ORDER ID',
                           style: TextStyle(
                             color: Colors.white54,
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        SizedBox(height: 5),
+                        const SizedBox(height: 5),
                         Text(
-                          'AZ1234567890',
-                          style: TextStyle(
+                          orderId,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -148,7 +156,7 @@ class OrderSuccessScreen extends StatelessWidget {
                               ),
                               SizedBox(height: 6),
                               Text(
-                                'Oct 24, 2023',
+                                'Within 5-7 days',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 11,
@@ -203,11 +211,7 @@ class OrderSuccessScreen extends StatelessWidget {
                     height: 48,
                     child: ElevatedButton(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Track Order'),
-                          ),
-                        );
+                        Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFFF7200),
@@ -217,7 +221,7 @@ class OrderSuccessScreen extends StatelessWidget {
                         ),
                       ),
                       child: const Text(
-                        'Track Order',
+                        'Back to Shopping',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 13,
