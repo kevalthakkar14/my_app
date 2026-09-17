@@ -363,8 +363,23 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
           ),
         ),
       ),
-      body: Center(
-        child: ConstrainedBox(
+      body: Stack(
+  children: [
+    Positioned.fill(
+      child: Image.asset(
+        'assets/images/car_pic.jpg',
+        fit: BoxFit.cover,
+      ),
+    ),
+
+    Positioned.fill(
+      child: Container(
+        color: const Color(0xCC080D19),
+      ),
+    ),
+
+    Center(
+      child: ConstrainedBox(
           constraints: const BoxConstraints(
             maxWidth: 600,
           ),
@@ -436,6 +451,9 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
           ),
         ),
       ),
+    
+    ]
+    )
     );
   }
 }

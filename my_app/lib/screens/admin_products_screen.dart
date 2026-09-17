@@ -15,6 +15,7 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
   final TextEditingController ratingController = TextEditingController();
+  final TextEditingController stockController = TextEditingController();
 
   String selectedCategory = 'SEAT COVERS';
   String selectedImage = 'assets/images/seat_cover.jpg';
@@ -51,6 +52,7 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
     nameController.dispose();
     priceController.dispose();
     ratingController.dispose();
+    stockController.dispose();
     super.dispose();
   }
 
@@ -58,6 +60,7 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
     nameController.clear();
     priceController.clear();
     ratingController.clear();
+    stockController.clear();
 
     setState(() {
       selectedCategory = 'SEAT COVERS';
@@ -66,12 +69,40 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
     });
   }
 
+  String stockStatus(int stock) {
+    if (stock == 0) {
+      return 'OUT OF STOCK';
+    }
+
+    if (stock < 10) {
+      return 'LOW STOCK';
+    }
+
+    return 'IN STOCK';
+  }
+
+  Color stockColor(int stock) {
+    if (stock == 0) {
+      return Colors.red;
+    }
+
+    if (stock < 10) {
+      return Colors.orange;
+    }
+
+    return Colors.green;
+  }
+
   Future<bool> saveProduct() async {
     String name = nameController.text.trim();
     String price = priceController.text.trim();
     String rating = ratingController.text.trim();
+    String stock = stockController.text.trim();
 
-    if (name.isEmpty || price.isEmpty || rating.isEmpty) {
+    if (name.isEmpty ||
+        price.isEmpty ||
+        rating.isEmpty ||
+        stock.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please fill all fields'),
@@ -83,6 +114,7 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
 
     int? priceValue = int.tryParse(price);
     double? ratingValue = double.tryParse(rating);
+    int? stockValue = int.tryParse(stock);
 
     if (priceValue == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -94,10 +126,22 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
       return false;
     }
 
-    if (ratingValue == null || ratingValue < 0 || ratingValue > 5) {
+    if (ratingValue == null ||
+        ratingValue < 0 ||
+        ratingValue > 5) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Rating must be between 0 and 5'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return false;
+    }
+
+    if (stockValue == null || stockValue < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Stock must be 0 or more'),
           backgroundColor: Colors.red,
         ),
       );
@@ -108,6 +152,7 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
       'name': name,
       'price': priceValue,
       'rating': ratingValue,
+      'stock': stockValue,
       'image': selectedImage,
       'category': selectedCategory,
     };
@@ -149,11 +194,21 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
     String id,
     Map<dynamic, dynamic> product,
   ) {
-    nameController.text = product['name']?.toString() ?? '';
-    priceController.text = product['price']?.toString() ?? '';
-    ratingController.text = product['rating']?.toString() ?? '';
+    nameController.text =
+        product['name']?.toString() ?? '';
 
-    String image = product['image']?.toString() ?? imagePaths[0];
+    priceController.text =
+        product['price']?.toString() ?? '';
+
+    ratingController.text =
+        product['rating']?.toString() ?? '';
+
+    stockController.text =
+        product['stock']?.toString() ?? '20';
+
+    String image =
+        product['image']?.toString() ?? imagePaths[0];
+
     String category =
         product['category']?.toString() ?? 'SEAT COVERS';
 
@@ -250,14 +305,17 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                 left: 20,
                 right: 20,
                 top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                bottom:
+                    MediaQuery.of(context).viewInsets.bottom + 20,
               ),
               child: SingleChildScrollView(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           editingId == null
@@ -313,6 +371,74 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
 
                     const SizedBox(height: 14),
 
+                    buildTextField(
+                      controller: stockController,
+                      label: 'Stock Quantity',
+                      icon: Icons.inventory_2_outlined,
+                      keyboardType: TextInputType.number,
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    const Text(
+                      'Stock Status',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF080D19),
+                        borderRadius:
+                            BorderRadius.circular(14),
+                      ),
+                      child: ValueListenableBuilder(
+                        valueListenable: stockController,
+                        builder: (context, value, child) {
+                          int stock =
+                              int.tryParse(
+                                    stockController.text,
+                                  ) ??
+                                  0;
+
+                          return Row(
+                            children: [
+                              Icon(
+                                Icons.circle,
+                                color: stockColor(stock),
+                                size: 12,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                stockStatus(stock),
+                                style: TextStyle(
+                                  color: stockColor(stock),
+                                  fontWeight:
+                                      FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '$stock items',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
                     const Text(
                       'Select Image',
                       style: TextStyle(
@@ -327,7 +453,8 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: const Color(0xFF080D19),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius:
+                            BorderRadius.circular(14),
                       ),
                       child: Column(
                         children: [
@@ -335,8 +462,10 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                             width: double.infinity,
                             height: 150,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF111827),
-                              borderRadius: BorderRadius.circular(12),
+                              color:
+                                  const Color(0xFF111827),
+                              borderRadius:
+                                  BorderRadius.circular(12),
                             ),
                             child: Image.asset(
                               selectedImage,
@@ -347,7 +476,8 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                                       MainAxisAlignment.center,
                                   children: [
                                     Icon(
-                                      Icons.image_not_supported,
+                                      Icons
+                                          .image_not_supported,
                                       color: Colors.red,
                                       size: 45,
                                     ),
@@ -370,7 +500,8 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                             child: DropdownButton<String>(
                               value: selectedImage,
                               isExpanded: true,
-                              dropdownColor: const Color(0xFF111827),
+                              dropdownColor:
+                                  const Color(0xFF111827),
                               icon: const Icon(
                                 Icons.keyboard_arrow_down,
                                 color: Colors.deepOrange,
@@ -386,7 +517,8 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                                   value: image,
                                   child: Text(
                                     fileName,
-                                    overflow: TextOverflow.ellipsis,
+                                    overflow:
+                                        TextOverflow.ellipsis,
                                   ),
                                 );
                               }).toList(),
@@ -420,18 +552,21 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                     const SizedBox(height: 8),
 
                     Container(
-                      padding: const EdgeInsets.symmetric(
+                      padding:
+                          const EdgeInsets.symmetric(
                         horizontal: 14,
                       ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF080D19),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius:
+                            BorderRadius.circular(14),
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           value: selectedCategory,
                           isExpanded: true,
-                          dropdownColor: const Color(0xFF111827),
+                          dropdownColor:
+                              const Color(0xFF111827),
                           icon: const Icon(
                             Icons.keyboard_arrow_down,
                             color: Colors.deepOrange,
@@ -467,19 +602,25 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                       height: 52,
                       child: ElevatedButton(
                         onPressed: () async {
-                          bool success = await saveProduct();
+                          bool success =
+                              await saveProduct();
 
                           if (success &&
                               bottomSheetContext.mounted) {
-                            Navigator.pop(bottomSheetContext);
+                            Navigator.pop(
+                              bottomSheetContext,
+                            );
                             clearFields();
                           }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepOrange,
+                          backgroundColor:
+                              Colors.deepOrange,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                          shape:
+                              RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(14),
                           ),
                         ),
                         child: Text(
@@ -514,7 +655,8 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.white60),
+        labelStyle:
+            const TextStyle(color: Colors.white60),
         prefixIcon: Icon(
           icon,
           color: Colors.deepOrange,
@@ -522,7 +664,8 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
         filled: true,
         fillColor: const Color(0xFF080D19),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius:
+              BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
       ),
@@ -537,23 +680,10 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
         height: 85,
         fit: BoxFit.contain,
         errorBuilder: (_, __, ___) {
-          return const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.image_not_supported,
-                color: Colors.red,
-                size: 35,
-              ),
-              SizedBox(height: 3),
-              Text(
-                'Error',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontSize: 10,
-                ),
-              ),
-            ],
+          return const Icon(
+            Icons.image_not_supported,
+            color: Colors.red,
+            size: 35,
           );
         },
       );
@@ -608,9 +738,23 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
           color: Colors.white,
         ),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
+     body: Stack(
+  children: [
+    Positioned.fill(
+      child: Image.asset(
+        'assets/images/car_pic3.jpg',
+        fit: BoxFit.cover,
+      ),
+    ),
+    Positioned.fill(
+      child: Container(
+        color: const Color(0xE6080D19),
+      ),
+    ),
+    Center(
+      child: ConstrainedBox(
+          constraints:
+              const BoxConstraints(maxWidth: 600),
           child: StreamBuilder<DatabaseEvent>(
             stream: productsRef.onValue,
             builder: (context, snapshot) {
@@ -623,7 +767,8 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                 );
               }
 
-              final value = snapshot.data?.snapshot.value;
+              final value =
+                  snapshot.data?.snapshot.value;
 
               if (value == null) {
                 return const Center(
@@ -648,41 +793,68 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                 );
               }
 
-              final data = Map<dynamic, dynamic>.from(value);
-              final entries = data.entries.toList();
+              final data =
+                  Map<dynamic, dynamic>.from(value);
+
+              final entries =
+                  data.entries.toList();
 
               return ListView.builder(
-                padding: const EdgeInsets.all(16),
+                padding:
+                    const EdgeInsets.all(16),
                 itemCount: entries.length,
                 itemBuilder: (context, index) {
                   final entry = entries[index];
 
-                  final String id = entry.key.toString();
+                  final String id =
+                      entry.key.toString();
 
                   final Map<dynamic, dynamic> product =
-                      Map<dynamic, dynamic>.from(entry.value);
+                      Map<dynamic, dynamic>.from(
+                    entry.value,
+                  );
 
                   final String name =
-                      product['name']?.toString() ?? 'Product';
+                      product['name']?.toString() ??
+                          'Product';
 
                   final String price =
-                      product['price']?.toString() ?? '0';
+                      product['price']?.toString() ??
+                          '0';
 
                   final String rating =
-                      product['rating']?.toString() ?? '0';
+                      product['rating']?.toString() ??
+                          '0';
+
+                  final int stock =
+                      int.tryParse(
+                            product['stock']
+                                    ?.toString() ??
+                                '20',
+                          ) ??
+                          20;
 
                   final String category =
-                      product['category']?.toString() ?? 'OTHER';
+                      product['category']?.toString() ??
+                          'OTHER';
 
                   final String image =
-                      product['image']?.toString() ?? '';
+                      product['image']?.toString() ??
+                          '';
 
                   return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF111827),
-                      borderRadius: BorderRadius.circular(18),
+                    margin:
+                        const EdgeInsets.only(
+                      bottom: 12,
+                    ),
+                    padding:
+                        const EdgeInsets.all(12),
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          const Color(0xFF111827),
+                      borderRadius:
+                          BorderRadius.circular(18),
                       border: Border.all(
                         color: Colors.white10,
                       ),
@@ -692,9 +864,15 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                         Container(
                           width: 85,
                           height: 85,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF080D19),
-                            borderRadius: BorderRadius.circular(14),
+                          decoration:
+                              BoxDecoration(
+                            color:
+                                const Color(
+                                    0xFF080D19),
+                            borderRadius:
+                                BorderRadius.circular(
+                              14,
+                            ),
                           ),
                           child: productImage(image),
                         ),
@@ -709,23 +887,33 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                               Text(
                                 name,
                                 maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                overflow:
+                                    TextOverflow.ellipsis,
+                                style:
+                                    const TextStyle(
                                   color: Colors.white,
                                   fontSize: 15,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight:
+                                      FontWeight.bold,
                                 ),
                               ),
+
                               const SizedBox(height: 5),
+
                               Text(
                                 '₹$price',
-                                style: const TextStyle(
-                                  color: Colors.deepOrange,
+                                style:
+                                    const TextStyle(
+                                  color:
+                                      Colors.deepOrange,
                                   fontSize: 15,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight:
+                                      FontWeight.bold,
                                 ),
                               ),
+
                               const SizedBox(height: 4),
+
                               Row(
                                 children: [
                                   const Icon(
@@ -736,24 +924,62 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                                   const SizedBox(width: 3),
                                   Text(
                                     rating,
-                                    style: const TextStyle(
-                                      color: Colors.white60,
+                                    style:
+                                        const TextStyle(
+                                      color:
+                                          Colors.white60,
                                       fontSize: 12,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      category,
-                                      overflow:
-                                          TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white38,
-                                        fontSize: 10,
-                                      ),
-                                    ),
-                                  ),
                                 ],
+                              ),
+
+                              const SizedBox(height: 6),
+
+                              Container(
+                                padding:
+                                    const EdgeInsets
+                                        .symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration:
+                                    BoxDecoration(
+                                  color: stockColor(
+                                    stock,
+                                  ).withValues(
+                                    alpha: 0.12,
+                                  ),
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                    8,
+                                  ),
+                                ),
+                                child: Text(
+                                  '${stockStatus(stock)} • $stock',
+                                  style: TextStyle(
+                                    color:
+                                        stockColor(
+                                      stock,
+                                    ),
+                                    fontSize: 10,
+                                    fontWeight:
+                                        FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 4),
+
+                              Text(
+                                category,
+                                overflow:
+                                    TextOverflow.ellipsis,
+                                style:
+                                    const TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 10,
+                                ),
                               ),
                             ],
                           ),
@@ -763,7 +989,10 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
                           children: [
                             IconButton(
                               onPressed: () {
-                                editProduct(id, product);
+                                editProduct(
+                                  id,
+                                  product,
+                                );
                               },
                               icon: const Icon(
                                 Icons.edit_outlined,
@@ -790,6 +1019,8 @@ class _AdminProductsScreenState extends State<AdminProductsScreen> {
           ),
         ),
       ),
-    );
+  ]
+     ) 
+     );
   }
 }
