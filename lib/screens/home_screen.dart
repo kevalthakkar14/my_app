@@ -1,30 +1,60 @@
+import 'dart:async';
+
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+
 import '../cart_data.dart';
 import 'cart_screen.dart';
 
+const Color appBackground = Color(0xFF080D19);
+const Color cardBackground = Color(0xFF111827);
+const Color orangeColor = Color(0xFFFF7200);
+
 String stockStatus(int stock) {
-  if (stock == 0) {
-    return 'OUT OF STOCK';
-  }
-
-  if (stock < 10) {
-    return 'LOW STOCK';
-  }
-
+  if (stock <= 0) return 'OUT OF STOCK';
+  if (stock < 10) return 'LOW STOCK';
   return 'IN STOCK';
 }
 
 Color stockColor(int stock) {
-  if (stock == 0) {
-    return Colors.red;
-  }
-
-  if (stock < 10) {
-    return Colors.orange;
-  }
-
+  if (stock <= 0) return Colors.red;
+  if (stock < 10) return Colors.orange;
   return Colors.green;
+}
+
+String formatPrice(int price) {
+  return '₹${price.toString().replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+    (match) => '${match[1]},',
+  )}';
+}
+
+Widget productImage(String path, {BoxFit fit = BoxFit.contain}) {
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return Image.network(
+      path,
+      fit: fit,
+      errorBuilder: (_, __, ___) => const Center(
+        child: Icon(
+          Icons.image_not_supported_outlined,
+          color: Colors.white38,
+          size: 45,
+        ),
+      ),
+    );
+  }
+
+  return Image.asset(
+    path,
+    fit: fit,
+    errorBuilder: (_, __, ___) => const Center(
+      child: Icon(
+        Icons.image_not_supported_outlined,
+        color: Colors.white38,
+        size: 45,
+      ),
+    ),
+  );
 }
 
 class ProductItem {
@@ -58,11 +88,11 @@ class ProductItem {
   factory ProductItem.fromMap(Map<dynamic, dynamic> map) {
     return ProductItem(
       name: map['name']?.toString() ?? 'Product',
-      price: int.tryParse(map['price']?.toString() ?? '0') ?? 0,
-      rating: double.tryParse(map['rating']?.toString() ?? '4.5') ?? 4.5,
+      price: int.tryParse(map['price']?.toString() ?? '') ?? 0,
+      rating: double.tryParse(map['rating']?.toString() ?? '') ?? 4.5,
       image: map['image']?.toString() ?? '',
       category: map['category']?.toString() ?? 'OTHER',
-      stock: int.tryParse(map['stock']?.toString() ?? '20') ?? 20,
+      stock: int.tryParse(map['stock']?.toString() ?? '') ?? 20,
     );
   }
 }
@@ -185,73 +215,84 @@ class HomeScreen extends StatefulWidget {
     ),
   ];
 
+  static List<ProductItem> firebaseProductsCache = [];
+
+  static List<ProductItem> get allAvailableProducts => [
+        ...allProducts,
+        ...firebaseProductsCache,
+      ];
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final DatabaseReference productsRef =
-      FirebaseDatabase.instance.ref('products');
-
+  StreamSubscription<DatabaseEvent>? _productsSubscription;
   List<ProductItem> firebaseProducts = [];
+  bool productsLoading = true;
+  bool firebaseProductsUnavailable = false;
 
   @override
   void initState() {
     super.initState();
-    loadFirebaseProducts();
+    _loadProducts();
   }
 
-  void loadFirebaseProducts() {
-    productsRef.onValue.listen((event) {
-      final value = event.snapshot.value;
+  void _loadProducts() {
+    _productsSubscription = FirebaseDatabase.instance
+        .ref('products')
+        .onValue
+        .listen(
+      (event) {
+        final value = event.snapshot.value;
+        final loaded = <ProductItem>[];
 
-      if (value == null) {
-        if (mounted) {
-          setState(() {
-            firebaseProducts = [];
-          });
+        if (value is Map) {
+          for (final entry in value.values) {
+            if (entry is Map) {
+              loaded.add(ProductItem.fromMap(entry));
+            }
+          }
         }
-        return;
-      }
 
-      if (value is! Map) {
-        return;
-      }
+        if (!mounted) return;
 
-      final data = Map<dynamic, dynamic>.from(value);
-
-      final List<ProductItem> loadedProducts = [];
-
-      for (final item in data.values) {
-        if (item is Map) {
-          loadedProducts.add(ProductItem.fromMap(item));
-        }
-      }
-
-      if (mounted) {
         setState(() {
-          firebaseProducts = loadedProducts;
+          firebaseProducts = loaded;
+          productsLoading = false;
+          firebaseProductsUnavailable = false;
+          HomeScreen.firebaseProductsCache = loaded;
         });
-      }
-    });
+      },
+      onError: (Object error) {
+        if (!mounted) return;
+
+        setState(() {
+          productsLoading = false;
+          firebaseProductsUnavailable = true;
+        });
+      },
+    );
   }
 
-  List<ProductItem> get products {
-    return [
-      ...HomeScreen.allProducts,
-      ...firebaseProducts,
-    ];
+  List<ProductItem> get products => [
+        ...HomeScreen.allProducts,
+        ...firebaseProducts,
+      ];
+
+  @override
+  void dispose() {
+    _productsSubscription?.cancel();
+    super.dispose();
   }
 
   void openCart() {
     if (widget.onNavigate != null) {
-      widget.onNavigate!(3);
+      widget.onNavigate!(2);
     } else {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => const CartScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const CartScreen()),
       );
     }
   }
@@ -263,32 +304,45 @@ class _HomeScreenState extends State<HomeScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => SearchScreen(
-            products: products,
-          ),
+          builder: (_) => SearchScreen(products: products),
         ),
       );
     }
   }
 
-  void openWishlist() {
+  void openProfile() {
     if (widget.onNavigate != null) {
-      widget.onNavigate!(2);
+      widget.onNavigate!(3);
     }
   }
 
-  void openProfile() {
-    if (widget.onNavigate != null) {
-      widget.onNavigate!(4);
-    }
+  void openCategory(String title) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CategoryProductsScreen(
+          categoryName: title,
+          products: products,
+        ),
+      ),
+    );
+  }
+
+  void openProduct(ProductItem product) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ProductDetailsScreen(product: product),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF080D19),
+      backgroundColor: appBackground,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF080D19),
+        backgroundColor: appBackground,
         elevation: 0,
         automaticallyImplyLeading: false,
         title: Row(
@@ -298,21 +352,21 @@ class _HomeScreenState extends State<HomeScreen> {
               width: 42,
               height: 42,
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) {
-                return const Icon(
-                  Icons.directions_car,
-                  color: Colors.deepOrange,
-                  size: 34,
-                );
-              },
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.directions_car,
+                color: orangeColor,
+                size: 34,
+              ),
             ),
             const SizedBox(width: 10),
-            const Text(
-              'AutoZone Premium',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+            const Expanded(
+              child: Text(
+                'AutoZone Premium',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -320,10 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           IconButton(
             onPressed: openSearch,
-            icon: const Icon(
-              Icons.search,
-              color: Colors.white,
-            ),
+            icon: const Icon(Icons.search, color: Colors.white),
           ),
           ValueListenableBuilder<List<Map<String, dynamic>>>(
             valueListenable: CartData.items,
@@ -340,15 +391,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (CartData.itemCount > 0)
                     Positioned(
                       right: 4,
-                      top: 5,
+                      top: 4,
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: const BoxDecoration(
-                          color: Colors.deepOrange,
+                          color: orangeColor,
                           shape: BoxShape.circle,
                         ),
                         child: Text(
-                          CartData.itemCount.toString(),
+                          '${CartData.itemCount}',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
@@ -365,9 +416,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: 600,
-          ),
+          constraints: const BoxConstraints(maxWidth: 600),
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -385,32 +434,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Stack(
                   children: [
                     Positioned(
-                      right: 10,
-                      bottom: 0,
+                      right: 5,
                       top: 0,
-                      child: Image.asset(
-                        'assets/images/car_image.jfif',
-                        width: 230,
-                        fit: BoxFit.contain,
+                      bottom: 0,
+                      child: SizedBox(
+                        width: 220,
+                        child: productImage(
+                          'assets/images/car_image.jfif',
+                        ),
                       ),
                     ),
                     const Padding(
-                      padding: EdgeInsets.all(20),
+                      padding: EdgeInsets.all(18),
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: SizedBox(
-                          width: 230,
+                          width: 215,
                           child: Column(
-                            mainAxisAlignment:
-                                MainAxisAlignment.center,
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'UPGRADE YOUR RIDE',
                                 style: TextStyle(
-                                  color: Colors.deepOrange,
-                                  fontSize: 13,
+                                  color: orangeColor,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -419,7 +467,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 'Premium Car Accessories',
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 23,
+                                  fontSize: 22,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -439,7 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 24),
               const Text(
                 'Categories',
                 style: TextStyle(
@@ -454,27 +502,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   children: [
-                    categoryCard(
-                      'SEAT COVERS',
-                      Icons.event_seat,
+                    _categoryCard('SEAT COVERS', Icons.event_seat),
+                    _categoryCard('FLOOR MATS', Icons.layers),
+                    _categoryCard('LED LIGHTS', Icons.lightbulb_outline),
+                    _categoryCard('WHEELS', Icons.tire_repair),
+                    _categoryCard(
+                      'ENGINE OIL',
+                      Icons.oil_barrel_outlined,
                     ),
-                    categoryCard(
-                      'FLOOR MATS',
-                      Icons.layers,
-                    ),
-                    categoryCard(
-                      'LED LIGHTS',
-                      Icons.lightbulb_outline,
-                    ),
-                    categoryCard(
-                      'WHEELS',
-                      Icons.tire_repair,
-                    ),
-                    categoryCard(
+                    _categoryCard(
                       'INTERIORS',
                       Icons.airline_seat_recline_normal,
                     ),
-                    categoryCard(
+                    _categoryCard(
                       'EXTERIORS',
                       Icons.cleaning_services,
                     ),
@@ -483,8 +523,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 24),
               Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
                     'Products',
@@ -503,11 +542,29 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              if (productsLoading)
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: LinearProgressIndicator(
+                    color: orangeColor,
+                    backgroundColor: cardBackground,
+                  ),
+                ),
+              if (firebaseProductsUnavailable)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8, bottom: 8),
+                  child: Text(
+                    'Showing available products. Firebase products could not load; check database permissions and connection.',
+                    style: TextStyle(
+                      color: Colors.orangeAccent,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 12),
               GridView.builder(
                 shrinkWrap: true,
-                physics:
-                    const NeverScrollableScrollPhysics(),
+                physics: const NeverScrollableScrollPhysics(),
                 itemCount: products.length,
                 gridDelegate:
                     const SliverGridDelegateWithFixedCrossAxisCount(
@@ -517,7 +574,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   childAspectRatio: 0.76,
                 ),
                 itemBuilder: (context, index) {
-                  return productCard(products[index]);
+                  return _productCard(products[index]);
                 },
               ),
             ],
@@ -525,43 +582,25 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       bottomNavigationBar:
-          widget.showBottomNavigation
-              ? bottomNavigation()
-              : null,
+          widget.showBottomNavigation ? _bottomNavigation() : null,
     );
   }
 
-  Widget categoryCard(
-    String title,
-    IconData icon,
-  ) {
+  Widget _categoryCard(String title, IconData icon) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CategoryProductsScreen(
-              categoryName: title,
-            ),
-          ),
-        );
-      },
+      onTap: () => openCategory(title),
       child: Container(
         width: 100,
         margin: const EdgeInsets.only(right: 10),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: const Color(0xFF111827),
+          color: cardBackground,
           borderRadius: BorderRadius.circular(15),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: Colors.deepOrange,
-              size: 28,
-            ),
+            Icon(icon, color: orangeColor, size: 28),
             const SizedBox(height: 7),
             Text(
               title,
@@ -579,61 +618,35 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget productCard(ProductItem product) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ProductDetailsScreen(
-              product: product,
-            ),
-          ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF111827),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white10,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
+  Widget _productCard(ProductItem product) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => openProduct(product),
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(16),
                 ),
-                child: product.image.startsWith('assets/')
-                    ? SizedBox(
-                        width: double.infinity,
-                        child: Image.asset(
-                          product.image,
-                          fit: BoxFit.contain,
-                        ),
-                      )
-                    : const Center(
-                        child: Icon(
-                          Icons.image_outlined,
-                          color: Colors.white38,
-                          size: 45,
-                        ),
-                      ),
+                child: SizedBox.expand(
+                  child: productImage(product.image),
+                ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                11,
-                9,
-                11,
-                10,
-              ),
+          ),
+          InkWell(
+            onTap: () => openProduct(product),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(11, 9, 11, 10),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     product.name,
@@ -665,9 +678,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    '₹${product.price}',
+                    formatPrice(product.price),
                     style: const TextStyle(
-                      color: Colors.deepOrange,
+                      color: orangeColor,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                     ),
@@ -684,56 +697,33 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget bottomNavigation() {
+  Widget _bottomNavigation() {
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF0C1425),
-        border: Border(
-          top: BorderSide(
-            color: Colors.white10,
-          ),
-        ),
+        border: Border(top: BorderSide(color: Colors.white10)),
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            vertical: 7,
-          ),
+          padding: const EdgeInsets.symmetric(vertical: 7),
           child: Row(
-            mainAxisAlignment:
-                MainAxisAlignment.spaceAround,
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              navItem(
-                Icons.home_outlined,
-                'Home',
-                true,
-                () {},
-              ),
-              navItem(
-                Icons.search,
-                'Browse',
-                false,
-                openSearch,
-              ),
-              navItem(
-                Icons.favorite_border,
-                'Wishlist',
-                false,
-                openWishlist,
-              ),
-              navItem(
+              _navItem(Icons.home_outlined, 'Home', true, () {}),
+              _navItem(Icons.search, 'Browse', false, openSearch),
+              _navItem(
                 Icons.shopping_cart_outlined,
                 'Cart',
                 false,
                 openCart,
               ),
-              navItem(
+              _navItem(
                 Icons.person_outline,
                 'Profile',
                 false,
@@ -746,7 +736,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget navItem(
+  Widget _navItem(
     IconData icon,
     String title,
     bool selected,
@@ -759,17 +749,13 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Icon(
             icon,
-            color: selected
-                ? Colors.deepOrange
-                : Colors.white54,
+            color: selected ? orangeColor : Colors.white54,
           ),
           const SizedBox(height: 3),
           Text(
             title,
             style: TextStyle(
-              color: selected
-                  ? Colors.deepOrange
-                  : Colors.white54,
+              color: selected ? orangeColor : Colors.white54,
               fontSize: 10,
             ),
           ),
@@ -788,92 +774,77 @@ class SearchScreen extends StatefulWidget {
   });
 
   @override
-  State<SearchScreen> createState() =>
-      _SearchScreenState();
+  State<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState
-    extends State<SearchScreen> {
+class _SearchScreenState extends State<SearchScreen> {
   String search = '';
 
   @override
   Widget build(BuildContext context) {
     final results = widget.products.where((product) {
-      return product.name
-              .toLowerCase()
-              .contains(search.toLowerCase()) ||
-          product.category
-              .toLowerCase()
-              .contains(search.toLowerCase());
+      return product.name.toLowerCase().contains(search.toLowerCase()) ||
+          product.category.toLowerCase().contains(search.toLowerCase());
     }).toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF080D19),
+      backgroundColor: appBackground,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF080D19),
+        backgroundColor: appBackground,
         title: const Text(
           'Browse Products',
-          style: TextStyle(
-            color: Colors.white,
-          ),
+          style: TextStyle(color: Colors.white),
         ),
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: 600,
-          ),
+          constraints: const BoxConstraints(maxWidth: 600),
           child: Column(
             children: [
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: TextField(
-                  onChanged: (value) {
-                    setState(() {
-                      search = value;
-                    });
-                  },
-                  style: const TextStyle(
-                    color: Colors.white,
-                  ),
+                  onChanged: (value) => setState(() => search = value),
+                  style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: 'Search products...',
-                    hintStyle: const TextStyle(
-                      color: Colors.white54,
-                    ),
+                    hintStyle: const TextStyle(color: Colors.white54),
                     prefixIcon: const Icon(
                       Icons.search,
-                      color: Colors.deepOrange,
+                      color: orangeColor,
                     ),
                     filled: true,
-                    fillColor:
-                        const Color(0xFF111827),
+                    fillColor: cardBackground,
                     border: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide.none,
                     ),
                   ),
                 ),
               ),
               Expanded(
-                child: GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: results.length,
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.76,
-                  ),
-                  itemBuilder: (context, index) {
-                    return searchProductCard(
-                      context,
-                      results[index],
-                    );
-                  },
-                ),
+                child: results.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No products found',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      )
+                    : GridView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: results.length,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 0.76,
+                        ),
+                        itemBuilder: (context, index) {
+                          final product = results[index];
+                          return _searchProductCard(context, product);
+                        },
+                      ),
               ),
             ],
           ),
@@ -882,50 +853,39 @@ class _SearchScreenState
     );
   }
 
-  Widget searchProductCard(
-    BuildContext context,
-    ProductItem product,
-  ) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ProductDetailsScreen(
-              product: product,
+  Widget _searchProductCard(BuildContext context, ProductItem product) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBackground,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ProductDetailsScreen(product: product),
+                ),
+              ),
+              child: SizedBox.expand(
+                child: productImage(product.image),
+              ),
             ),
           ),
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF111827),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: product.image.startsWith('assets/')
-                  ? Image.asset(
-                      product.image,
-                      width: double.infinity,
-                      fit: BoxFit.contain,
-                    )
-                  : const Center(
-                      child: Icon(
-                        Icons.image_outlined,
-                        color: Colors.white38,
-                        size: 45,
-                      ),
-                    ),
+          InkWell(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProductDetailsScreen(product: product),
+              ),
             ),
-            Padding(
+            child: Padding(
               padding: const EdgeInsets.all(10),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     product.name,
@@ -938,9 +898,9 @@ class _SearchScreenState
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    '₹${product.price}',
+                    formatPrice(product.price),
                     style: const TextStyle(
-                      color: Colors.deepOrange,
+                      color: orangeColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -956,145 +916,133 @@ class _SearchScreenState
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class CategoryProductsScreen
-    extends StatelessWidget {
+class CategoryProductsScreen extends StatelessWidget {
   final String categoryName;
+  final List<ProductItem>? products;
 
   const CategoryProductsScreen({
     super.key,
     required this.categoryName,
+    this.products,
   });
 
   @override
   Widget build(BuildContext context) {
-    final products = HomeScreen.allProducts
+    final source = products ?? HomeScreen.allAvailableProducts;
+    final filtered = source
         .where(
           (product) =>
-              product.category.toUpperCase() ==
-              categoryName.toUpperCase(),
+              product.category.toUpperCase() == categoryName.toUpperCase(),
         )
         .toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF080D19),
+      backgroundColor: appBackground,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF080D19),
+        backgroundColor: appBackground,
         title: Text(
           categoryName,
-          style: const TextStyle(
-            color: Colors.white,
-          ),
+          style: const TextStyle(color: Colors.white),
         ),
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: 600,
-          ),
-          child: GridView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: products.length,
-            gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 0.76,
-            ),
-            itemBuilder: (context, index) {
-              final product = products[index];
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: filtered.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No products in this category',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filtered.length,
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.76,
+                  ),
+                  itemBuilder: (context, index) {
+                    final product = filtered[index];
 
-              return GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ProductDetailsScreen(
-                        product: product,
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: cardBackground,
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                    ),
-                  );
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF111827),
-                    borderRadius:
-                        BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Image.asset(
-                          product.image,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                      Padding(
-                        padding:
-                            const EdgeInsets.all(10),
-                        child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              product.name,
-                              maxLines: 2,
-                              overflow:
-                                  TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight:
-                                    FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              '₹${product.price}',
-                              style: const TextStyle(
-                                color:
-                                    Colors.deepOrange,
-                                fontWeight:
-                                    FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              stockStatus(product.stock),
-                              style: TextStyle(
-                                color:
-                                    stockColor(
-                                  product.stock,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ProductDetailsScreen(product: product),
                                 ),
-                                fontSize: 10,
-                                fontWeight:
-                                    FontWeight.bold,
+                              ),
+                              child: SizedBox.expand(
+                                child: productImage(product.image),
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  product.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  formatPrice(product.price),
+                                  style: const TextStyle(
+                                    color: orangeColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 5),
+                                Text(
+                                  stockStatus(product.stock),
+                                  style: TextStyle(
+                                    color: stockColor(product.stock),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
       ),
     );
   }
 }
 
-class ProductDetailsScreen
-    extends StatelessWidget {
+class ProductDetailsScreen extends StatelessWidget {
   final ProductItem product;
 
   const ProductDetailsScreen({
@@ -1104,44 +1052,30 @@ class ProductDetailsScreen
 
   @override
   Widget build(BuildContext context) {
-    final bool outOfStock = product.stock == 0;
+    final outOfStock = product.stock <= 0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF080D19),
+      backgroundColor: appBackground,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF080D19),
+        backgroundColor: appBackground,
         title: const Text(
           'Product Details',
-          style: TextStyle(
-            color: Colors.white,
-          ),
+          style: TextStyle(color: Colors.white),
         ),
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: 600,
-          ),
+          constraints: const BoxConstraints(maxWidth: 600),
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
               Container(
                 height: 280,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF111827),
-                  borderRadius:
-                      BorderRadius.circular(20),
+                  color: cardBackground,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: product.image.startsWith('assets/')
-                    ? Image.asset(
-                        product.image,
-                        fit: BoxFit.contain,
-                      )
-                    : const Icon(
-                        Icons.image_outlined,
-                        color: Colors.white38,
-                        size: 80,
-                      ),
+                child: productImage(product.image),
               ),
               const SizedBox(height: 22),
               Text(
@@ -1155,10 +1089,7 @@ class ProductDetailsScreen
               const SizedBox(height: 10),
               Row(
                 children: [
-                  const Icon(
-                    Icons.star,
-                    color: Colors.amber,
-                  ),
+                  const Icon(Icons.star, color: Colors.amber),
                   const SizedBox(width: 5),
                   Text(
                     product.rating.toString(),
@@ -1171,9 +1102,9 @@ class ProductDetailsScreen
               ),
               const SizedBox(height: 12),
               Text(
-                '₹${product.price}',
+                formatPrice(product.price),
                 style: const TextStyle(
-                  color: Colors.deepOrange,
+                  color: orangeColor,
                   fontSize: 25,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1190,24 +1121,20 @@ class ProductDetailsScreen
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: stockColor(product.stock)
-                      .withValues(alpha: 0.12),
-                  borderRadius:
-                      BorderRadius.circular(12),
+                  color: stockColor(product.stock).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       Icons.inventory_2_outlined,
-                      color:
-                          stockColor(product.stock),
+                      color: stockColor(product.stock),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       stockStatus(product.stock),
                       style: TextStyle(
-                        color:
-                            stockColor(product.stock),
+                        color: stockColor(product.stock),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1229,41 +1156,25 @@ class ProductDetailsScreen
                   onPressed: outOfStock
                       ? null
                       : () {
-                          CartData.addToCart(
-                            product.toMap(),
-                          );
-
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(
+                          CartData.addToCart(product.toMap());
+                          ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                'Product added to cart',
-                              ),
-                              backgroundColor:
-                                  Colors.deepOrange,
+                              content: Text('Product added to cart'),
+                              backgroundColor: orangeColor,
                             ),
                           );
                         },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        Colors.deepOrange,
-                    disabledBackgroundColor:
-                        Colors.grey.shade800,
+                    backgroundColor: orangeColor,
+                    disabledBackgroundColor: Colors.grey.shade800,
                     foregroundColor: Colors.white,
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: Text(
-                    outOfStock
-                        ? 'OUT OF STOCK'
-                        : 'ADD TO CART',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    outOfStock ? 'OUT OF STOCK' : 'ADD TO CART',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
